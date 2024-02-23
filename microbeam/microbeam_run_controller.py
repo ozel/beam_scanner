@@ -16,16 +16,19 @@ class RunState(enum.Enum):
 
 class MicrobeamSubscriberSocket:
     def __init__(self):
-        self._clients = set()
+        self._write_clients = []
+        self._read_clients = []
 
     async def handle_client(self, reader, writer):
         logging.info("Adding TCP subscriber to client list")
-        self._clients.add(writer)
+        self._read_clients.append(reader)
+        self._write_clients.append(writer)
+
     
     async def push_msg(self, msg):
         removal_queue = []
 
-        for writer in self._clients:
+        for writer in self._write_clients:
             try:
                 writer.write((msg + "\n").encode('utf8'))
                 await writer.drain()
@@ -35,18 +38,26 @@ class MicrobeamSubscriberSocket:
         for dead_writer in removal_queue:
             logging.info("Removing TCP subscriber from client list")
             dead_writer.close()
-            self._clients.remove(dead_writer)
+            self._write_clients.pop(dead_writer)
+
+    async def read_ack(self):
+        if self._read_clients:
+            data = await self._read_clients[0].readline()
+            if data.decode('utf8').rstrip() == "ack":
+                return True
+            return False
 
 class MicrobeamRunController:
     """Run control and bookkeeping class"""
 
-    def __init__(self, logger, iface):
+    def __init__(self, logger, iface, wait_for_client_ack=False):
         self._logger = logger
         self._iface = iface
         self._read_task = None
         self._scan_task = None
         self._scan_run = False
 
+        self.wait_for_client_ack = wait_for_client_ack
         self.scan_points = 0
         self.scan_points_done = 0
 
@@ -162,6 +173,10 @@ class MicrobeamRunController:
 
         # clear shutter override during scan
         await self._iface.set_shutter_override(False)
+        if self.wait_for_client_ack is True:
+            if not self.subscriber_socket._read_clients:
+                self._logger.error("TCP client required for run control, but none connected. Aborting run.")
+                return
         for _ in range(repeat_count):
             for y in y_vals:
                 for x in x_vals:
