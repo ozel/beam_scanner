@@ -177,6 +177,9 @@ class MicrobeamRunController:
             if not self.subscriber_socket._read_clients:
                 self._logger.error("TCP client required for run control, but none connected. Aborting run.")
                 return
+
+        # ensure shutter is closed at start of scan
+        await self._iface.close_shutter()
         for _ in range(repeat_count):
             for y in y_vals:
                 for x in x_vals:
@@ -185,10 +188,14 @@ class MicrobeamRunController:
                     timeout_count = 0
                     self._logger.info(f"Scan advancing to point {self.scan_points_done+1} / {self.scan_points}")
                     await self.write_dac(x, y)
+                    await self._iface.open_shutter()
+                    self._logger.debug(f"Shutter open")
                     await self.subscriber_socket.push_msg(f"pos {x} {y}")
                     while timeout_count < step_timeout_count and self.hit_count - start_count < hits_per_step and self._scan_run:
                         await asyncio.sleep(poll_period)
                         timeout_count += 1
+                    await self._iface.close_shutter()
+                    self._logger.debug(f"Shutter closed")
                     self.scan_points_done += 1
                     if not self._scan_run:
                         break
@@ -197,9 +204,10 @@ class MicrobeamRunController:
             if not self._scan_run:
                 break
         
+        self._logger.info(f"Scan finished, {self.scan_points_done} / {self.scan_points} points done.")
         await self.subscriber_socket.push_msg("stop_run")
         # shutter beam before setting beam to origin
-        await self._iface.set_shutter_override(True)
+        await self._iface.close_shutter() 
         await self.write_dac_voltage(0, 0)
     
     def _handle_read_task_result(self, task):
@@ -337,7 +345,7 @@ class MicrobeamRunController:
         # complete the current scan
         self._scan_run = False
         await self._scan_task  # wait for scan task to finish
-        await self._iface.set_shutter_override(True)
-        await self.write_dac_voltage(0, 0)
+        #await self._iface.close_shutter(True)  # already handled by scan task
+        #await self.write_dac_voltage(0, 0)            # already handled by scan task
         assert self.state == RunState.IDLE
 
