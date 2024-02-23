@@ -50,7 +50,7 @@ class MicrobeamSubscriberSocket:
 class MicrobeamRunController:
     """Run control and bookkeeping class"""
 
-    def __init__(self, logger, iface, wait_for_client_ack=False):
+    def __init__(self, logger, iface, wait_for_hit_event = True, wait_for_client_ack=False):
         self._logger = logger
         self._iface = iface
         self._read_task = None
@@ -58,11 +58,17 @@ class MicrobeamRunController:
         self._scan_run = False
 
         self.wait_for_client_ack = wait_for_client_ack
+        self.wait_for_hit_event = wait_for_hit_event
+
         self.scan_points = 0
         self.scan_points_done = 0
 
         self.hit_count = 0
         self.hits = []
+        self.step_start_count = 0
+        self.hits_per_step = None
+        self.hits_per_step_event = None
+
 
         self.dac_x = 0
         self.dac_y = 0
@@ -129,6 +135,9 @@ class MicrobeamRunController:
         self._read_task.add_done_callback(self._handle_read_task_result)
         server = await asyncio.start_server(self.subscriber_socket.handle_client, 'localhost', 8188)
         asyncio.create_task(server.serve_forever())
+        if self.wait_for_hit_event:
+            self.hits_per_step_event = asyncio.Event()
+
         
     async def _scan_generator_task(
             self,
@@ -145,9 +154,10 @@ class MicrobeamRunController:
         ):
         """Scan generation logic"""
         self._scan_run = True  # external scan abort signal
+        self.hits_per_step = hits_per_step
 
         # poll period
-        poll_period = 0.01
+        poll_period = 0.01  # 10 ms
         if step_timeout == 0:
             step_timeout_count = int(1e9 / poll_period) # ~ heat death of universe
         else:
@@ -171,8 +181,14 @@ class MicrobeamRunController:
         self.scan_points = len(x_vals) * len(y_vals) * repeat_count
         self.scan_points_done = 0
 
-        # clear shutter override during scan
-        await self._iface.set_shutter_override(False)
+
+        if self.wait_for_hit_event is True:
+            self.hits_per_step_event.clear()
+            if step_timeout == 0:
+                timeout = None
+            else:
+                timeout = step_timeout
+
         if self.wait_for_client_ack is True:
             if not self.subscriber_socket._read_clients:
                 self._logger.error("TCP client required for run control, but none connected. Aborting run.")
@@ -184,16 +200,32 @@ class MicrobeamRunController:
             for y in y_vals:
                 for x in x_vals:
                     # new sweep step
-                    start_count = self.hit_count
                     timeout_count = 0
                     self._logger.info(f"Scan advancing to point {self.scan_points_done+1} / {self.scan_points}")
                     await self.write_dac(x, y)
                     await self._iface.open_shutter()
                     self._logger.debug(f"Shutter open")
                     await self.subscriber_socket.push_msg(f"pos {x} {y}")
-                    while timeout_count < step_timeout_count and self.hit_count - start_count < hits_per_step and self._scan_run:
-                        await asyncio.sleep(poll_period)
-                        timeout_count += 1
+                    self.step_start_count = self.hit_count
+                    if self.wait_for_client_ack is True:
+                        await self.subscriber_socket.read_ack()
+                        self._logger.info(f"Step acknowledged by main TCP client")
+                    if self.wait_for__hit_event is True:
+                        #self._logger.debug(f"wait for hits per step event")
+                        try:
+                            await asyncio.wait_for(self.hits_per_step_event.wait(), timeout)
+                        except asyncio.TimeoutError:
+                            self._logger.warning(f"Timeout waiting for hits per step event")
+                        self.hits_per_step_event.clear()
+                        # NOTE: For short periods (<=1ms) between hits, several may be missed,
+                        # but we can be sure an mimimum of hits_per_step hits were delivered at this point.
+                        # The scan cannot be stopped manually via GUI while waiting here,
+                        # but this way we get rid of the polling loop/sleep().
+                        #self._logger.debug(f"hits per step event reached and cleared")
+                    else:# for backwards compatibility
+                        while timeout_count < step_timeout_count and self.hit_count - self.step_start_count < self.hits_per_step and self._scan_run:
+                            await asyncio.sleep(poll_period)
+                            timeout_count += 1
                     await self._iface.close_shutter()
                     self._logger.debug(f"Shutter closed")
                     self.scan_points_done += 1
@@ -209,6 +241,11 @@ class MicrobeamRunController:
         # shutter beam before setting beam to origin
         await self._iface.close_shutter() 
         await self.write_dac_voltage(0, 0)
+        #await self.subscriber_socket.push_msg(f"pos {x} {y}")
+        if self.hits_per_step_event is not None:
+            self.hits_per_step_event.clear()
+        
+
     
     def _handle_read_task_result(self, task):
         try:
