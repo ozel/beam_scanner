@@ -1,0 +1,199 @@
+<h2>Run Control</h2>
+<p>Enter scan parameters below.</p>
+
+<div class="row">
+    <!-- scan unit selector -->
+    <div class="mb-3">
+        Scan Units: <select class="form-control mb-3" id="scan_units">
+            <option value="um">µm</option>
+            <option value="volt">Volt</option>
+            <option value="lsb">LSB</option>
+        </select>
+    </div>
+</div>
+
+<div class="row">
+    <!-- X scan settings -->
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="-10" max="10" value="-1" id="start_x">
+            <label for="start_x" class="form-label">X Start <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="-10" max="10" value="1" id="stop_x">
+            <label for="stop_x" class="form-label">X Stop <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="1" max="10000" value="10" id="points_x">
+            <label for="points_x" class="form-label">Number of X Points</label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" value="0" id="step_x_calc" readonly>
+            <label for="step_x_calc" class="form-label">X resolution <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Y scan settings -->
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="-10" max="10" value="-1" id="start_y">
+            <label for="start_y" class="form-label">Y Start <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="-10" max="10" value="1" id="stop_y">
+            <label for="stop_y" class="form-label">Y Stop <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="1" max="10000" value="10" id="points_y">
+            <label for="points_y" class="form-label">Number of Y Points</label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" value="0" id="step_y_calc" readonly>
+            <label for="step_y_calc" class="form-label">Y resolution <span class="unitlabel">(µm)</span></label>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <!-- Scan control settings -->
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="1" max="1000" value="10" id="hits_per_step">
+            <label for="hits_per_step" class="form-label">Hits per step</label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="0" max="1000" value="0" id="step_timeout">
+            <label for="step_timeout" class="form-label">Step timeout (seconds, 0 for none)</label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" min="1" max="1000" value="1" id="repeat_count">
+            <label for="repeat_count" class="form-label">Number of scan repetitions</label>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <!-- Scan information-->
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="number" value="0" id="scan_points_input" readonly>
+            <label for="scan_points" class="form-label">Number of scan points</label>
+        </div>
+    </div>
+    <div class="col">
+        <div class="form-floating mb-3">
+            <input class="form-control" type="string" value="00:00:00" id="scan_duration" readonly>
+            <label for="scan_duration" class="form-label">Estimated scan duration (HH:MM:SS)</label>
+        </div>
+    </div>
+</div>
+<div class="row">
+    <div class="col">
+            <div class="form-floating mb-3">
+                <input class="btn btn-primary" type="button" id="start_run" value="Start Run">
+                <input class="btn btn-primary" type="button" id="stop_run" value="Stop Run">
+            </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var start_x_input = document.getElementById("start_x");
+    var stop_x_input = document.getElementById("stop_x");
+    var points_x_input = document.getElementById("points_x");
+    var step_x_calc_input = document.getElementById("step_x_calc");
+    var start_y_input = document.getElementById("start_y");
+    var stop_y_input = document.getElementById("stop_y");
+    var points_y_input = document.getElementById("points_y");
+    var step_y_calc_input = document.getElementById("step_y_calc");
+    var hits_per_step_input = document.getElementById("hits_per_step");
+    var step_timeout_input = document.getElementById("step_timeout");
+    var repeat_count_input = document.getElementById("repeat_count");
+    var units_input = document.getElementById("units");
+    var scan_points_input = document.getElementById("scan_points_input");
+    var scan_duration_input = document.getElementById("scan_duration");
+
+    var start_button = document.getElementById("start_run");
+    var stop_button = document.getElementById("stop_run");
+
+    start_button.onclick = function(event) {
+        websocket.send(JSON.stringify(
+            {
+                "action": "start_run",
+
+                "start_x": start_x_input.value,
+                "stop_x": stop_x_input.value,
+                "points_x": points_x_input.value,
+
+                "start_y": start_y_input.value,
+                "stop_y": stop_y_input.value,
+                "points_y": points_y_input.value,
+
+                "hits_per_step": hits_per_step_input.value,
+                "step_timeout": step_timeout_input.value,
+                "repeat_count": repeat_count_input.value,
+
+                "scan_units": scan_units.options[scan_units.selectedIndex].value,
+            }
+        ));
+    }
+    
+    stop_button.onclick = function(event) {
+        websocket.send(JSON.stringify(
+            {
+                "action": "stop_run",
+            }
+        ));
+    }
+
+    scan_units.onchange = function(event) {
+        var spans = document.getElementsByClassName("unitlabel");
+        for (var i = 0; i < spans.length; i++) spans[i].innerHTML='(' + scan_units.options[scan_units.selectedIndex].text + ')';
+    }
+
+
+    var calcScanRes = function() {
+        var x_res = (stop_x_input.value - start_x_input.value) / (points_x_input.value - 1);
+        var y_res = (stop_y_input.value - start_y_input.value) / (points_y_input.value - 1);
+        step_x_calc_input.value = x_res;
+        step_y_calc_input.value = y_res;
+
+        var step_points = points_x_input.value * points_y_input.value * repeat_count_input.value;
+        scan_points_input.value = step_points;
+
+        var scan_duration_hits = step_points * hits_per_step_input.value / 25;
+        var scan_duration_timeout = step_points * step_timeout_input.value;
+        
+        if (scan_duration_timeout > 0) {
+            var scan_duration = Math.min(scan_duration_hits, scan_duration_timeout);
+        } else {
+            var scan_duration = scan_duration_hits;
+        }
+        scan_duration_input.value = new Date(scan_duration * 1000).toISOString().substr(11, 8);
+    }
+    
+    start_x_input.onchange = calcScanRes;
+    stop_x_input.onchange = calcScanRes;
+    start_y_input.onchange = calcScanRes;
+    stop_y_input.onchange = calcScanRes;
+    points_x_input.onchange = calcScanRes;
+    points_y_input.onchange = calcScanRes;
+    hits_per_step_input.onchange = calcScanRes;
+    step_timeout_input.onchange = calcScanRes;
+    repeat_count_input.onchange = calcScanRes;
+</script>

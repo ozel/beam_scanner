@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <link href="static/bootstrap-5.1.3-dist/css/bootstrap.min.css" rel="stylesheet">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Microbeam Web Interface</title>
+    </head>
+    <body>
+        <nav class="navbar navbar-expand-md navbar-dark bg-dark static-top">
+            <a class="navbar-brand" href="/">Microbeam GUI</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbar">
+                <div class="navbar-nav me-auto">
+                        <a class="nav-item nav-link" href="run_control.html">Run Control</a>
+                        <a class="nav-item nav-link" href="hit_map.html">Hit Map</a>
+                        <a class="nav-item nav-link" href="dac_control.html">DAC Control</a>
+                </div>
+            </div>
+            <div class="collapse navbar-collapse" id="navbar">
+                <div class="navbar-nav ms-auto">
+                    <div class="badge bg-secondary">
+                        <b>
+                        State: <span id="status_state">-1</span> |
+                        Run: <span id="status_run_id">-1</span> |
+                        X: <span id="status_dac_x">-1</span> LSBs |
+                        Y: <span id="status_dac_y">-1</span> LSBs |
+			<span id="scan_points_done">-1</span> / <span id="scan_points">-1</span> Points Done (<span id="scan_pct">-1</span> %)
+                        </b>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <script type="text/javascript">
+            var socketUrl = new URL("ws", window.location.href);
+            socketUrl.protocol = socketUrl.protocol.replace("http", "ws");
+            var websocket = new WebSocket(socketUrl);
+            websocket.binaryType = "arraybuffer";
+
+            setInterval(update_status, 1000);
+
+            function update_status() {
+                websocket.send(JSON.stringify(
+                    {
+                        action: "poll",
+                    }
+                ));
+
+            }
+
+            var new_hits = [];
+
+            websocket.addEventListener('message', function (event) {
+                var data = JSON.parse(event.data);
+                document.getElementById("status_state").innerHTML = data["state"];
+                document.getElementById("status_run_id").innerHTML = data["run_id"];
+                document.getElementById("status_dac_x").innerHTML = data["dac_x"];
+                document.getElementById("status_dac_y").innerHTML = data["dac_y"];
+                document.getElementById("scan_points").innerHTML = data["scan_points"];
+                document.getElementById("scan_points_done").innerHTML = data["scan_points_done"];
+                document.getElementById("scan_pct").innerHTML = Math.round(data["scan_points_done"] / data["scan_points"] * 1000) / 10;
+
+                data["new_hits"].forEach((hit) => {new_hits.push(hit)});
+            });
+        </script>
+
+        <main role="main" class="container">
+            <br />

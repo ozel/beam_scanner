@@ -1,0 +1,58 @@
+<h2>Raw DAC control</h2>
+<p>Enter desired value for X/Y DACs. Make sure no other scans are in progess before use.</p>
+
+<form>
+    <div class="row">
+        <!-- scan unit selector -->
+        <div class="mb-3">
+            Scan Units: <select class="form-control mb-3" id="scan_units">
+                <option value="um">µm</option>
+                <option value="volt">Volt</option>
+                <option value="lsb">LSB</option>
+            </select>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col">
+            <div class="form-floating mb-3">
+                <input class="form-control" type="number" min="-10" max="10" value="0" id="dac_x">
+                <label for="dac_x" class="form-label">X <span class="unitlabel">(µm)</span></label>
+            </div>
+        </div>
+        <div class="col">
+            <div class="form-floating mb-3">
+                <input class="form-control" type="number" min="-10" max="10" value="0" id="dac_y">
+                <label for="dac_y" class="form-label">Y <span class="unitlabel">(µm)</span></label>
+            </div>
+        </div>
+        <div class="col">
+            <div class="form-floating mb-3">
+                <input class="btn btn-primary" type="button" id="set" value="Set">
+            </div>
+        </div>
+    </div>
+</form>
+
+<script type="text/javascript">
+    var dac_x_input = document.getElementById("dac_x");
+    var dac_y_input = document.getElementById("dac_y");
+    var units_input = document.getElementById("units");
+    var set_button = document.getElementById("set");
+
+    set_button.onclick = function(event) {
+        websocket.send(JSON.stringify(
+            {
+                "action": "write_dac",
+                "dac_x": dac_x_input.value,
+                "dac_y": dac_y_input.value,
+                "units": scan_units.options[scan_units.selectedIndex].value,
+            }
+        ));
+    }
+    
+    scan_units.onchange = function(event) {
+        var spans = document.getElementsByClassName("unitlabel");
+        for (var i = 0; i < spans.length; i++) spans[i].innerHTML='(' + scan_units.options[scan_units.selectedIndex].text + ')';
+    }
+
+</script>

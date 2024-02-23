@@ -1,0 +1,34 @@
+<script src="static/chart.js-3.7.1/chart.min.js"></script>
+<h2>Real-Time Hit Map</h2>
+<p>Hit information is automatically updated on the map below once per second.</p>
+
+<canvas id="myChart" width="400" height="200"></canvas>
+<script>
+const ctx = document.getElementById('myChart').getContext('2d');
+const hitChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+        datasets: [{
+            label: 'Hit Positions',
+            data: []
+        }]
+    },
+    options: {
+        animation: {
+            duration: 0
+        }
+    }
+});
+            
+    setInterval(add_data, 1000);
+
+    function add_data() {
+        // new_hits is filled from websocket poll request
+        while (new_hits.length) {
+            var point = new_hits.pop()
+            hitChart.data.datasets[0].data.push(point);
+        }
+        hitChart.update();
+    }
+</script>
+
