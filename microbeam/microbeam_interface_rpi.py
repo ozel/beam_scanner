@@ -54,7 +54,7 @@ class MicrobeamInterfaceRpi:
                 sys_ts = time.time()
                 self._run_ctrl.hit_count += 1
                 self._run_ctrl._log_hit(hw_ts=tick, sys_ts=sys_ts, x=x, y=y)
-                self._logger.info(f"Hit logged at time {tick/1000:_.03f} ms @ ({x}|{y})")              
+                self._logger.info(f"Hit *logged* at time {tick/1000:_.03f} ms @ ({x}|{y})")              
                 if self._run_ctrl.hits_per_step is not None:    # FIXME: better: if self._run_ctrl.state == RunState.RUNNING:
                     if self._run_ctrl.hit_count - self._run_ctrl.step_start_count >= self._run_ctrl.hits_per_step:
                         self._run_ctrl.hits_per_step_event.set()
@@ -83,6 +83,10 @@ class MicrobeamInterfaceRpi:
         """Wait for and read a new hit (positive edge on TRIGGER input is inverted by 5V->3.3V shitfer).
         Returned timestamp is in microseconds after start and position is in DAC LSBs (16 bit signed)
         """
+        # FIXME: this is here for legacy reasons only, it will be deleted at some point!
+        # run_controller's _read_hit_task should be removed entierly and the endless loop generating 
+        # simulated hits must then be started in hw_init() instead
+
         # Glasgow amaranth code:
         #data = await self._lower.read(length=8, flush=False)
         #timestamp = data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24)

@@ -15,9 +15,10 @@ class RunState(enum.Enum):
     RUN_ACTIVE = 1
 
 class MicrobeamSubscriberSocket:
-    def __init__(self):
+    def __init__(self, tcp_server_port=8188):
         self._write_clients = []
         self._read_clients = []
+        self.tcp_server_port = tcp_server_port
 
     async def handle_client(self, reader, writer):
         logging.info("Adding TCP subscriber to client list")
@@ -50,7 +51,7 @@ class MicrobeamSubscriberSocket:
 class MicrobeamRunController:
     """Run control and bookkeeping class"""
 
-    def __init__(self, logger, iface, wait_for_hit_event = True, wait_for_client_ack=False):
+    def __init__(self, logger, iface, wait_for_client_ack=False, wait_for_hit_event = True):
         self._logger = logger
         self._iface = iface
         self._read_task = None
@@ -133,7 +134,7 @@ class MicrobeamRunController:
         """Launch background tasks controlling event data flow"""
         self._read_task = asyncio.create_task(self._read_hit_task())
         self._read_task.add_done_callback(self._handle_read_task_result)
-        server = await asyncio.start_server(self.subscriber_socket.handle_client, 'localhost', 8188)
+        server = await asyncio.start_server(self.subscriber_socket.handle_client, 'localhost', self.subscriber_socket.tcp_server_port)
         asyncio.create_task(server.serve_forever())
         if self.wait_for_hit_event:
             self.hits_per_step_event = asyncio.Event()
