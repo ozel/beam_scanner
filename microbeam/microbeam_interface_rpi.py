@@ -92,7 +92,7 @@ class MicrobeamInterfaceRpi:
         if self._run_ctrl is not None and self._run_ctrl.wait_for_hit_event is True:
             if self._simulate:
                 while True:
-                    await asyncio.sleep(random.gauss(mu=0.05, sigma=0.02))
+                    await asyncio.sleep(random.gauss(mu=0.0001, sigma=0.000_5))
                     tick = (time.time() - self.init_time) * 1000_000
                     await self._trigger_cb(self.trigger, 0,tick)
             else:

@@ -16,7 +16,7 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 async def main():
     
     logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     # start logging to file
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
     log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))

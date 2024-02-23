@@ -210,7 +210,7 @@ class MicrobeamRunController:
                     if self.wait_for_client_ack is True:
                         await self.subscriber_socket.read_ack()
                         self._logger.info(f"Step acknowledged by main TCP client")
-                    if self.wait_for__hit_event is True:
+                    if self.wait_for_hit_event is True:
                         #self._logger.debug(f"wait for hits per step event")
                         try:
                             await asyncio.wait_for(self.hits_per_step_event.wait(), timeout)
