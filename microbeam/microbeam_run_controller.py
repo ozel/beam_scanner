@@ -1,5 +1,7 @@
 """Run control and interface governance logic"""
 import asyncio
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 import enum
 import os
 import logging
