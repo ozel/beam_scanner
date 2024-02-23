@@ -1,8 +1,11 @@
 import logging
 import asyncio
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 import aiohttp, aiohttp.web
 import os
 import json
+import socket
 
 class MicrobeamWebInterface:
     def __init__(self, logger, run_ctrl):
@@ -120,4 +123,6 @@ class MicrobeamWebInterface:
         await runner.setup()
         site = aiohttp.web.TCPSite(runner, "0.0.0.0", "8088")
         await site.start()
+        self._logger.info(f"Web server started. Try: http://{socket.gethostname()}.local:8088/")
         await asyncio.Future()
+        

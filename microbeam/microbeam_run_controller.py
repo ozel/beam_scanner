@@ -107,8 +107,7 @@ class MicrobeamRunController:
             hw_ts, x, y = await self._iface.read_hit()  # blocks until new hit is available
             sys_ts = time.time()
             self.hit_count += 1
-
-            self._logger.info(f"Hit at time {hw_ts/100:.02f} ms @ ({x}|{y})")
+            self._logger.info(f"Hit at time {hw_ts/1000:_.03f} ms @ ({x}|{y})")
             self._log_hit(hw_ts=hw_ts, sys_ts=sys_ts, x=x, y=y)
 
     async def start(self):

@@ -99,7 +99,6 @@ class MicrobeamInterfaceRpi:
         if self._simulate:
             await asyncio.sleep(random.gauss(mu=0.5, sigma=0.1))
             self.ts = (time.time() - self.init_time) * 1000_000
-            print(self.ts)
         else:
             if self._run_ctrl is not None:
                 await asyncio.Future()  # never return, we log hits already in _trigger_cb()
