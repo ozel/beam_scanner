@@ -16,7 +16,7 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 async def main():
     
     logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     # start logging to file
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
     log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))
@@ -31,7 +31,7 @@ async def main():
 
     run_ctrl = MicrobeamRunController(logger, iface) #, wait_for_client_ack=True)
     
-    #iface._run_ctrl = run_ctrl  # allows direct access to run_ctrl from interface inside GPIO trigger callback
+    iface._run_ctrl = run_ctrl  # allows direct access to run_ctrl from interface inside GPIO trigger callback
     
     await run_ctrl.start()
 

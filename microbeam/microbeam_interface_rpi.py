@@ -42,9 +42,6 @@ class MicrobeamInterfaceRpi:
         
 
     async def _trigger_cb(self,gpio, level, tick):
-        #if self._run_ctrl.hits_per_step_event.is_set():
-        #    self._run_ctrl.hits_per_step_event.clear()
-        #    self._logger.debug(f"hits per step event cleared in callback")
         # tick in µs, wraps every 72 minutes
         self.ts = tick
         #self._logger.debug(f"new hit at time {tick/1000:.03f} ms")
@@ -57,18 +54,14 @@ class MicrobeamInterfaceRpi:
                 sys_ts = time.time()
                 self._run_ctrl.hit_count += 1
                 self._run_ctrl._log_hit(hw_ts=tick, sys_ts=sys_ts, x=x, y=y)
-                self._logger.debug(f"Hit logged at time {tick/1000:.03f} ms @ ({x}|{y})")              
+                self._logger.info(f"Hit logged at time {tick/1000:_.03f} ms @ ({x}|{y})")              
                 if self._run_ctrl.hits_per_step is not None:    # FIXME: better: if self._run_ctrl.state == RunState.RUNNING:
                     if self._run_ctrl.hit_count - self._run_ctrl.step_start_count >= self._run_ctrl.hits_per_step:
                         self._run_ctrl.hits_per_step_event.set()
-                        #self._logger.debug(f"hits per step event set")
                     # event is cleared and self._run_ctrl.step_start_count is updated by scan_task of run controller
         
-        #self._logger.debug(f"Hit seen at time {tick/1000:.03f} ms")
-
-        #self._logger.debug(f"t: {self.i}")
-        #self.i+=1
-
+        self._logger.debug(f"Hit seen at time {tick/1000:_.03f} ms")
+                        
     async def set_led(self, num, value):
         # not implemented
         pass
@@ -95,19 +88,25 @@ class MicrobeamInterfaceRpi:
         #timestamp = data[0] + (data[1] << 8) + (data[2] << 16) + (data[3] << 24)
         #x = data[4] + (data[5] << 8)
         #y = data[6] + (data[7] << 8)
-
-        if self._simulate:
-            await asyncio.sleep(random.gauss(mu=0.5, sigma=0.1))
-            self.ts = (time.time() - self.init_time) * 1000_000
-        else:
-            if self._run_ctrl is not None:
+       
+        if self._run_ctrl is not None and self._run_ctrl.wait_for_hit_event is True:
+            if self._simulate:
+                while True:
+                    await asyncio.sleep(random.gauss(mu=0.05, sigma=0.02))
+                    tick = (time.time() - self.init_time) * 1000_000
+                    await self._trigger_cb(self.trigger, 0,tick)
+            else:
                 await asyncio.Future()  # never return, we log hits already in _trigger_cb()
-            
-            # following wait_for_edge method is way too slow to catch GPIO edges closer than 1 ms
-            # the trigger callback should simply write the hit data directly to the run controller
-            # hence: assing iface._run_ctrl manually after init() of run controller
-            # keeping this code around as reference (it was used in GSI X0 beam time in 2022)
-            await self.pi.wait_for_edge(self.trigger, apio.FALLING_EDGE, 60*60) #1 hour timeout
+        # following wait_for_edge method is way too slow to catch GPIO edges closer than 1 ms
+        # the trigger callback should simply write the hit data directly to the run controller
+        # hence: assing iface._run_ctrl manually after init() of run controller
+        # keeping this code around as reference (it was used in GSI X0 beam time in 2022)
+        else:
+            if self._simulate:
+                await asyncio.sleep(random.gauss(mu=0.05, sigma=0.02))
+                self.ts = (time.time() - self.init_time) * 1000_000
+            else:
+                await self.pi.wait_for_edge(self.trigger, apio.FALLING_EDGE, 60*60) #1 hour timeout
         x = self.x
         y = self.y
         return self.ts, x, y
