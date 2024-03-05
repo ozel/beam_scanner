@@ -1,10 +1,10 @@
 """Run control and interface governance logic"""
 import asyncio
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+#import uvloop
+#asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 import enum
 import os
-import logging
+import picologging as logging
 import time
 import json
 
@@ -51,15 +51,20 @@ class MicrobeamSubscriberSocket:
 class MicrobeamRunController:
     """Run control and bookkeeping class"""
 
-    def __init__(self, logger, iface, wait_for_client_ack=False, wait_for_hit_event = True):
+    def __init__(self, logger, iface, wait_for_client_ack=True):
         self._logger = logger
         self._iface = iface
+        self._iface._run_ctrl = self  # interface class needs direct access to run_ctrl for logging hits from GPIO trigger callback
+
+        self._stop_run_task = None
+        self._wait_for_hits_task = None
         self._read_task = None
         self._scan_task = None
         self._scan_run = False
 
         self.wait_for_client_ack = wait_for_client_ack
-        self.wait_for_hit_event = wait_for_hit_event
+        self.stop_run_event = asyncio.Event()
+
 
         self.scan_points = 0
         self.scan_points_done = 0
@@ -132,12 +137,13 @@ class MicrobeamRunController:
 
     async def start(self):
         """Launch background tasks controlling event data flow"""
-        self._read_task = asyncio.create_task(self._read_hit_task())
-        self._read_task.add_done_callback(self._handle_read_task_result)
+        self.hits_per_step_event = asyncio.Event()
+        self.stop_run_event = asyncio.Event()
+        #self._read_task = asyncio.create_task(self._read_hit_task())
+        #self._read_task.add_done_callback(self._handle_read_task_result)
         server = await asyncio.start_server(self.subscriber_socket.handle_client, 'localhost', self.subscriber_socket.tcp_server_port)
         asyncio.create_task(server.serve_forever())
-        if self.wait_for_hit_event:
-            self.hits_per_step_event = asyncio.Event()
+
 
         
     async def _scan_generator_task(
@@ -182,56 +188,75 @@ class MicrobeamRunController:
         self.scan_points = len(x_vals) * len(y_vals) * repeat_count
         self.scan_points_done = 0
 
-
-        if self.wait_for_hit_event is True:
-            self.hits_per_step_event.clear()
-            if step_timeout == 0:
-                timeout = None
-            else:
-                timeout = step_timeout
+        self.hits_per_step_event.clear()
+        if step_timeout == 0:
+            timeout = None
+        else:
+            timeout = step_timeout
 
         if self.wait_for_client_ack is True:
             if not self.subscriber_socket._read_clients:
                 self._logger.error("TCP client required for run control, but none connected. Aborting run.")
                 return
-
-        # ensure shutter is closed at start of scan
+            
+       # ensure shutter is closed at start of scan
         await self._iface.close_shutter()
         for _ in range(repeat_count):
             for y in y_vals:
                 for x in x_vals:
                     # new sweep step
-                    timeout_count = 0
-                    self._logger.info(f"Scan advancing to point {self.scan_points_done+1} / {self.scan_points}")
                     await self.write_dac(x, y)
-                    await self._iface.open_shutter()
-                    self._logger.debug(f"Shutter open")
+                    self._logger.info(f"Scan advancing to point {self.scan_points_done+1} / {self.scan_points}")
                     await self.subscriber_socket.push_msg(f"pos {x} {y}")
                     self.step_start_count = self.hit_count
-                    if self.wait_for_client_ack is True:
-                        await self.subscriber_socket.read_ack()
-                        self._logger.info(f"Step acknowledged by main TCP client")
-                    if self.wait_for_hit_event is True:
-                        #self._logger.debug(f"wait for hits per step event")
-                        try:
-                            await asyncio.wait_for(self.hits_per_step_event.wait(), timeout)
-                        except asyncio.TimeoutError:
-                            self._logger.warning(f"Timeout waiting for hits per step event")
-                        self.hits_per_step_event.clear()
-                        # NOTE: For short periods (<=1ms) between hits, several may be missed,
-                        # but we can be sure an mimimum of hits_per_step hits were delivered at this point.
-                        # The scan cannot be stopped manually via GUI while waiting here,
-                        # but this way we get rid of the polling loop/sleep().
-                        #self._logger.debug(f"hits per step event reached and cleared")
-                    else:# for backwards compatibility
-                        while timeout_count < step_timeout_count and self.hit_count - self.step_start_count < self.hits_per_step and self._scan_run:
-                            await asyncio.sleep(poll_period)
-                            timeout_count += 1
+                    self._wait_for_hits_task = asyncio.create_task(self.hits_per_step_event.wait())
+                    self._stop_run_task = asyncio.create_task(self.stop_run_event.wait())
+                    wait_for_tasks = [self._stop_run_task,self._wait_for_hits_task]
+                    wait_for_client_task = None
+                    if self.wait_for_client_ack:
+                        wait_for_client_task = asyncio.create_task(self.subscriber_socket.read_ack())
+                        wait_for_tasks.append(wait_for_client_task)
+                    await self._iface.open_shutter()
+                    done,pending = await asyncio.wait(wait_for_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout)
                     await self._iface.close_shutter()
-                    self._logger.debug(f"Shutter closed")
-                    self.scan_points_done += 1
+                    first_task = None
+                    if done == set(): #nothing finished
+                        self._logger.error(f"Timeout of {step_timeout}s reached. Aborting scan!")
+                        self._scan_run = False # Abort scan
+                    else: 
+                        first_task = done.pop()
+                        #print(first_task)
+                        #print(pending)
+                        if first_task == wait_for_client_task:
+                            hits_awaited = self.hit_count - self.step_start_count
+                            if hits_awaited >= self.hits_per_step/2:
+                                self._logger.info(f"Step acknowledged by main TCP client, hits per step: {hits_awaited} / {self.hits_per_step}")
+                                # OK, go to next step
+                            else:
+                                self._logger.info(f"Less than half of hits per step received before TCP client acknowledged, hits per step: {hits_awaited} / {self.hits_per_step}. Aborting scan!")
+                                self._scan_run = False # Abort scan
+                        elif first_task == self._wait_for_hits_task:
+                            # required number of hits_per_step were received
+                            self.hits_per_step_event.clear()
+                            # OK, go to next step unless the TCP client never acknowledged (is checked below)
+                        elif first_task == self._stop_run_task:
+                            self.stop_run_event.clear()
+                            self._logger.info("Run aborted in by user.")
+                            self._scan_run = False # stop_run() did this already
+                        if self._scan_run and self.wait_for_client_ack: # not other abort condition has been met already?
+                            for i in pending:
+                                if i == wait_for_client_task:
+                                    self._logger.error(f"TCP client did never acknowledge step after {self.hits_per_step} hits received. Aborting scan!")
+                                    self._scan_run = False # Abort scan
+                                i.cancel()
+                    # NOTE: For short periods (< ~1ms) between hits, several may be missed before shutter closes,
+                    # but we can be sure a mimimum of hits_per_step/2 hits were delivered at this point.
+                    # FIXME: modify and add _read_hit() task to catch stop_run!
+                    # TODO: return aborted to clients?
                     if not self._scan_run:
                         break
+                    else:
+                        self.scan_points_done += 1
                 if not self._scan_run:
                     break
             if not self._scan_run:
@@ -243,9 +268,8 @@ class MicrobeamRunController:
         await self._iface.close_shutter() 
         await self.write_dac_voltage(0, 0)
         #await self.subscriber_socket.push_msg(f"pos {x} {y}")
-        if self.hits_per_step_event is not None:
-            self.hits_per_step_event.clear()
-        
+        self.hits_per_step_event.clear()
+        self.stop_run_event.clear()
 
     
     def _handle_read_task_result(self, task):
@@ -382,6 +406,7 @@ class MicrobeamRunController:
             return
         # complete the current scan
         self._scan_run = False
+        await self.stop_run_event.set()
         await self._scan_task  # wait for scan task to finish
         #await self._iface.close_shutter(True)  # already handled by scan task
         #await self.write_dac_voltage(0, 0)            # already handled by scan task

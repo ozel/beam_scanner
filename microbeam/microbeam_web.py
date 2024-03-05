@@ -1,7 +1,7 @@
-import logging
+import picologging as logging
 import asyncio
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+#import uvloop
+#asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 import aiohttp, aiohttp.web
 import os
 import json

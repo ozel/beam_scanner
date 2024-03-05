@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-import logging
+import picologging as logging
 from microbeam.microbeam_web import MicrobeamWebInterface
 from microbeam.microbeam_run_controller import MicrobeamRunController
 from microbeam.microbeam_interface_rpi import MicrobeamInterfaceRpi
 
 import asyncio, os
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+#import uvloop
+#asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 # quick notes: (FIXME: create README.md)
 # 1. run this script with Python 3.9 or higher
@@ -41,7 +41,7 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 async def main():
     
     logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO) # use .DEBUG only for testing, it will destroy timing!
     # start logging to file
     log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
     log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))
@@ -49,13 +49,12 @@ async def main():
     logging.getLogger().addHandler(log_file_handler)
 
 
-    iface = MicrobeamInterfaceRpi(logger, simulate=True) # simulate=True => testing on a regular computer (no pigpiod)
-    await iface.init_hw()
+    iface = MicrobeamInterfaceRpi(logger, simulate=False) # simulate=True => testing on a regular computer (no pigpiod)
     
     wait_for_client_ack = False  # if True, the main TCP client must reply with a new line character (any message) before advancing the ion beam to the next step
     run_ctrl = MicrobeamRunController(logger, iface, wait_for_client_ack)
-    
-    iface._run_ctrl = run_ctrl  # HACK: required for direct access to run_ctrl from interface inside GPIO trigger callback
+
+    await iface.init_hw()
     
     await run_ctrl.start()
 
