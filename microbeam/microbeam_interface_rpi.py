@@ -178,7 +178,7 @@ class MicrobeamInterfaceRpi:
                         self._logger.warning(f"Script already deleted!")
                         break
                     else:                    
-                        self._logger.debug(f"Script not halted, status {"RUNNING" if (s == 2) else s}, waiting again...")
+                        self._logger.debug(f"Script not halted, status {'RUNNING' if (s == 2) else s}, waiting again...")
                         await asyncio.sleep(self.min_hit_delay)
                 #FIXME:??? await self.pi.run_script(self.pigpio_script)
         else: # cheap shutdown action
