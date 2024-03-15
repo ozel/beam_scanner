@@ -131,7 +131,7 @@ class MicrobeamRunController:
             assert self.run_hit_log is not None
             for i in range(hits):
                 self.hits.append({'hw_ts': hw_ts, 'sys_ts': sys_ts, 'x': x, 'y': y})
-            self.run_hit_log.write(f"{hw_ts},{sys_ts:.7f},{x},{y},{hits},{self.latch_counter if (latch_up is True) else "-"}\n")
+            self.run_hit_log.write(f"{hw_ts},{sys_ts:.7f},{x},{y},{hits},{self.latch_counter if (latch_up is True) else '-'}\n")
             self.run_hit_log.flush()
 
     async def _read_hit_task(self):
