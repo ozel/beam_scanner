@@ -4,9 +4,9 @@ from microbeam.microbeam_web import MicrobeamWebInterface
 from microbeam.microbeam_run_controller import MicrobeamRunController
 from microbeam.microbeam_interface_rpi import MicrobeamInterfaceRpi
 
-import asyncio, os
-#import uvloop
-#asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+import asyncio, os, signal
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 # quick notes: (FIXME: create README.md)
 # 1. run this script with Python 3.9 or higher
@@ -38,21 +38,28 @@ import asyncio, os
 # ack
 # stop_run
 
+def handler(signum, frame):
+    #print('Signal handler called with signal', signum)
+    #asyncio.create_task(run_ctrl.stop_run())
+    asyncio.create_task(iface.close_hw())
+    exit(0)
+
+
+signal.signal(signal.SIGINT, handler)
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO) # use .DEBUG only for testing, it will destroy timing!
+# start logging to file
+log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
+log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))
+log_file_handler.setFormatter(log_formatter)
+logging.getLogger().addHandler(log_file_handler)
+
+iface = MicrobeamInterfaceRpi(logger, simulate=True) # simulate=True => testing on a regular computer (no pigpiod)
+    
+run_ctrl = MicrobeamRunController(logger, iface, wait_for_client_ack = False, fifo_file='/tmp/latch_fifo') # if True, the main TCP client must reply with a new line character (any message) before advancing the ion beam to the next step
+
 async def main():
-    
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.INFO) # use .DEBUG only for testing, it will destroy timing!
-    # start logging to file
-    log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
-    log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))
-    log_file_handler.setFormatter(log_formatter)
-    logging.getLogger().addHandler(log_file_handler)
-
-
-    iface = MicrobeamInterfaceRpi(logger, simulate=False) # simulate=True => testing on a regular computer (no pigpiod)
-    
-    wait_for_client_ack = False  # if True, the main TCP client must reply with a new line character (any message) before advancing the ion beam to the next step
-    run_ctrl = MicrobeamRunController(logger, iface, wait_for_client_ack)
 
     await iface.init_hw()
     
@@ -63,5 +70,6 @@ async def main():
     web_if = MicrobeamWebInterface(logger, run_ctrl)
     await web_if.serve()
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
+    await iface.close_hw()
+
+asyncio.run(main())
