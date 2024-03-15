@@ -86,7 +86,7 @@ class MicrobeamWebInterface:
                     if last_hit_id < self._run_ctrl.hit_count:
                         new_hits = [{'x': hit['x'], 'y': hit['y']} for hit in self._run_ctrl.hits[last_hit_id:self._run_ctrl.hit_count]]
                         last_hit_id = self._run_ctrl.hit_count
-                        self._logger.info(f"Delivered {len(new_hits)} hits to frontend.")
+                        self._logger.info(f"Posted {len(new_hits)} hits to GUI.")
                     else:
                         new_hits = []
 
@@ -124,5 +124,9 @@ class MicrobeamWebInterface:
         site = aiohttp.web.TCPSite(runner, "0.0.0.0", "8088")
         await site.start()
         self._logger.info(f"Web server started. Try: http://{socket.gethostname()}.local:8088/")
-        await asyncio.Future()
+        try:
+            await asyncio.Future()
+        except:
+            await runner.cleanup()
+            self._logger.info(f"Web server stopped. Shutting down hardware interface.")
         
