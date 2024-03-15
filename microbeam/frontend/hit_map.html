@@ -2,7 +2,7 @@
 <h2>Real-Time Hit Map</h2>
 <p>Hit information is automatically updated on the map below once per second.</p>
 
-<canvas id="myChart" width="400" height="200"></canvas>
+<canvas id="myChart" width="200" height="200"></canvas>
 <script>
 const ctx = document.getElementById('myChart').getContext('2d');
 const hitChart = new Chart(ctx, {
@@ -16,7 +16,15 @@ const hitChart = new Chart(ctx, {
     options: {
         animation: {
             duration: 0
-        }
+        },
+        elements: {
+            point: {
+                radius: 21,
+                pointStyle: 'rect',
+                backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                borderWidth: 0,
+            }
+        },
     }
 });
             
