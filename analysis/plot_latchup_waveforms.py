@@ -23,7 +23,7 @@ df = pd.read_pickle(filename)
 offset = 0
 for column in df.columns:
     plt.plot(df.index, df[column] + offset, label=column)
-    offset += 20  # Increase the offset for the next column
+    offset += 0  # Increase the offset for the next column
 
 
 # Put a legend to the right of the current axis
