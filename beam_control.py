@@ -38,30 +38,22 @@ asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 # ack
 # stop_run
 
-def handler(signum, frame):
-    #print('Signal handler called with signal', signum)
-    #asyncio.create_task(run_ctrl.stop_run())
-    asyncio.create_task(iface.close_hw())
-    exit(0)
-
-
-signal.signal(signal.SIGINT, handler)
-
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO) # use .DEBUG only for testing, it will destroy timing!
+logging.basicConfig(level=logging.DEBUG) # use .DEBUG only for testing, it will destroy timing!
 # start logging to file
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
+#log_formatter = logging.Formatter("%(asctime)s [%(levelname)s]  %(message)s") # bug in picologging with asctime
+log_formatter = logging.Formatter("%(created)f [%(levelname)s]  %(message)s")
 log_file_handler = logging.FileHandler(os.path.join(os.getcwd(), "beam_control_log.txt"))
 log_file_handler.setFormatter(log_formatter)
 logging.getLogger().addHandler(log_file_handler)
 
-iface = MicrobeamInterfaceRpi(logger, simulate=True) # simulate=True => testing on a regular computer (no pigpiod)
+iface = MicrobeamInterfaceRpi(logger,simulate=False) # simulate=True => testing on a regular computer (no pigpiod)
     
 run_ctrl = MicrobeamRunController(logger, iface, wait_for_client_ack = False, fifo_file='/tmp/latch_fifo') # if True, the main TCP client must reply with a new line character (any message) before advancing the ion beam to the next step
 
 async def main():
 
-    await iface.init_hw()
+    await iface.init_hw(pigpio_host="192.168.0.200")
     
     await run_ctrl.start()
 
@@ -72,4 +64,11 @@ async def main():
 
     await iface.close_hw()
 
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except KeyboardInterrupt:
+    logger.info("KeyboardInterrupt received, stopping run controller and closing hardware interface.")
+    asyncio.run(run_ctrl.stop_run())
+    asyncio.run(iface.close_hw())
+    logger.info("Exiting.")
+
