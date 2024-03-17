@@ -19,11 +19,25 @@ const hitChart = new Chart(ctx, {
         },
         elements: {
             point: {
-                radius: 21,
-                pointStyle: 'rect',
-                backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                radius: 3,
+                pointStyle: 'circle',
+                backgroundColor: 'rgba(0, 0, 0, 0.1)',
                 borderWidth: 0,
             }
+        },
+        scales: {
+            x: {
+                grid: {
+                    lineWidth: 1,
+                    color: 'rgba(0, 0, 0, 1)',
+                },
+            },
+            y: {
+                grid: {
+                    lineWidth: 1,
+                    color: 'rgba(0, 0, 0, 1)',
+                },
+            },
         },
     }
 });
