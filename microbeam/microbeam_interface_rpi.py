@@ -34,7 +34,7 @@ class MicrobeamInterfaceRpi:
 
         # NOTE: if the following delay is too short (< 1 ms) the event_cb() isn't called anymore at some point.
         # this may be realted to a race condition inside the pigpio library.
-        self.min_hit_delay = 0.001 # seconds
+        self.min_hit_delay = 0.01 # seconds
 
         self.shutter_closed = True
         self.init_time = None
@@ -67,7 +67,7 @@ class MicrobeamInterfaceRpi:
                             dcr p9
                             jp  1
                         w p2 {int(not self.SHUTTER_OPEN)}
-                        evt p1
+                        evt {self.trigger}
         """
 
         # for only one edge, counting instructions can be skipped
@@ -84,7 +84,7 @@ class MicrobeamInterfaceRpi:
                             ld v1 v0
                             jnz 1
                         w p2 {int(not self.SHUTTER_OPEN)}
-                        evt p1
+                        evt {self.trigger}
         """
 
 
@@ -140,7 +140,7 @@ class MicrobeamInterfaceRpi:
     async def _trigger_cb(self, event, tick):
         # tick in µs, wraps every 72 minutes
         self.last_tick = tick
-        #self._logger.debug(f"At least {self.hits_per_shutter} hit(s) seen at time {tick/1000:_.03f} ms")
+        #self._logger.info(f"At least {self.hits_per_shutter} hit(s) seen at time {tick/1000:_.03f} ms")
         self.hits_per_shutter_event.set()          
 
     async def read_hits(self):  
@@ -179,8 +179,10 @@ class MicrobeamInterfaceRpi:
                         break
                     else:                    
                         self._logger.debug(f"Script not halted, status {'RUNNING' if (s == 2) else s}, waiting again...")
+                        hits_delivered = True                        
+                        #FIXME: this is a problem if time timeout occured before
                         await asyncio.sleep(self.min_hit_delay)
-                #FIXME:??? await self.pi.run_script(self.pigpio_script)
+                        #await self.pi.run_script(self.pigpio_script)
         else: # cheap shutdown action
             if self.pigpio_script is not None:
                 await self.pi.delete_script(self.pigpio_script)
@@ -217,12 +219,13 @@ class MicrobeamInterfaceRpi:
 
     async def close_hw(self):
         if not self._simulate:
-            self._logger.info(f"HW closed. In total logged {self._run_ctrl.hit_count} hits.")
             await self.event_cb.cancel()
             if self.pigpio_script is not None:
                 await self.pi.delete_script(self.pigpio_script)
                 self.pigpio_script = None
             await self.pi.stop()
+            self._logger.info(f"HW closed. In total logged {self._run_ctrl.hit_count} hits.")
+
 
 
 
