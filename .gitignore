@@ -2,3 +2,4 @@ __pycache__/
 run.id
 beam_control_log.txt
 run_*/
+.venv/
