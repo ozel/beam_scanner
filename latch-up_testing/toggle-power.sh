@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+
+nc -N 192.168.0.61 5025 << EOF
+INST OUT1
+OUTP:SEL ON
+OUTP?
+EOF
+
+sleep 0.5
+
+nc -N 192.168.0.61 5025 <<EOF
+INST OUT1
+OUTP:SEL OFF
+OUTP?
+EOF
+
+sleep $1
+
+nc -N 192.168.0.61 5025 << EOF
+INST OUT1
+OUTP:SEL ON
+OUTP?
+EOF
